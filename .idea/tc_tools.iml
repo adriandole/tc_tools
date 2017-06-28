@@ -8,6 +8,7 @@
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="module" module-name="pv_timelapse" />
     <orderEntry type="module" module-name="pv_timelapse" />
+    <orderEntry type="module" module-name="pv_timelapse" />
   </component>
   <component name="TestRunnerService">
     <option name="projectConfiguration" value="Nosetests" />

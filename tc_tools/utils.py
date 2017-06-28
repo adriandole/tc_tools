@@ -2,6 +2,7 @@ import visa
 import os
 import csv
 import time
+import logging
 import numpy as np
 from datetime import datetime
 
@@ -24,22 +25,26 @@ def address_query():
 
 class TempWriter:
     """Writes data to a file"""
+    logger = logging.getLogger('Data')
+
     def __init__(self, output_file_name, headers):
         """
         Sets the file name and headers
 
         :param output_file_name: path to output to
-        :type output_file_name: str
+        :type output_file_name: os.path.abspath
         :param headers: headers for the CSV file
         :type headers: list
         """
         self.headers = ['Time', 'PRT'] + headers
-        self.output_file_name = output_file_name
-        self.file_already_exists = os.path.isfile(self.output_file_name)
+        self.output_file_path = os.path.abspath(output_file_name)
+        self.logger.info('Writing to: {}'.format(str(self.output_file_path)))
+        self.file_already_exists = os.path.isfile(self.output_file_path)
         self._open_file()
         self.csv_writer = csv.writer(self.output_file, dialect='excel', quoting=csv.QUOTE_ALL)
         if not self.file_already_exists:
             self.csv_writer.writerow(self.headers)
+            self.logger.info('Writing CSV headers')
 
     def collect_data(self, prt, daq, reads=10, interval=30):
         """
@@ -55,24 +60,28 @@ class TempWriter:
         :type interval: int
         """
         successful_reads = 0
+        self.logger.info('Collecting data: {} readings at {}s intervals'
+                         .format(reads, interval))
         while successful_reads < reads:
             try:
                 data = [prt.get_temp()] + daq.get_temp()
                 self._write(data)
                 successful_reads += 1
-                print('Read #{} successful'.format(successful_reads))
+                self.logger.info('Read #{} successful'.format(successful_reads))
             except:
-                print('DAQ read error. Retrying')
+                self.logger.warning('DAQ read error. Retrying')
                 continue
             time.sleep(interval)
-        print('Data collection complete.')
+        self.logger.info('Data collection complete.')
         self.output_file.flush()
 
     def _open_file(self):
         if self.file_already_exists:
-            self.output_file = open(self.output_file_name, 'a', newline='')
+            self.output_file = open(self.output_file_path, 'a', newline='')
+            self.logger.info('Appending to existing file')
         else: 
-            self.output_file = open(self.output_file_name, 'w', newline='')
+            self.output_file = open(self.output_file_path, 'w', newline='')
+            self.logger.info('Creating new file')
 
     def _write(self, input_data):
         self.csv_writer.writerow([datetime.now().strftime('%Y-%m-%d %H:%M:%S')] + input_data)
@@ -93,13 +102,12 @@ def steady_state_monitor(prt, steady_delta=0.1):
             recent_temp = prt.get_temp()
         except:
             continue
-        print('Temperature: {}'.format(recent_temp))
+        print(recent_temp, end='\r')
         temperature_array = np.append(temperature_array, recent_temp)
         if temperature_array.size > 60:
             temperature_array = np.delete(temperature_array, 0)
         delta = np.amax(temperature_array) - np.amin(temperature_array)
         steady_state = (delta <= steady_delta) and (temperature_array.size >= 60)
-        print('Steady state: {}\nDelta: {:.3f}'.format(steady_state, delta))
         time.sleep(10)
         if steady_state:
             return True

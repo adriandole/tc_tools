@@ -1,4 +1,7 @@
 import argparse
+import os
+import sys
+import logging
 from tc_tools.procedures import setpoint_calibration
 
 parser = argparse.ArgumentParser()
@@ -18,8 +21,26 @@ parser.add_argument('-hd', '--headers', nargs='+', dest='hd',
                          ' channel inputs')
 in_args = parser.parse_args()
 
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
+                    datefmt='%m-%d %H:%M',
+                    filename='tc_tools.log',
+                    filemode='w')
+console = logging.StreamHandler()
+console.setLevel(logging.INFO)
+formatter = logging.Formatter('%(name)-12s: %(levelname)-8s %(message)s')
+console.setFormatter(formatter)
+logging.getLogger('').addHandler(console)
+
+try:
+    out_path = os.path.abspath(in_args.o)
+except:
+    sys.exit('Invalid output file name or path')
+
 try:
     setpoint_calibration(in_args.prt, in_args.daq, in_args.bath, in_args.s,
                          in_args.o, in_args.hd, in_args.c)
 except Exception as e:
-    print(e)
+    logging.critical('Exception during execution: {}'.format(type(e).__name__))
+
+logging.info('Calibration successful')
