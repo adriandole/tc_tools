@@ -70,23 +70,47 @@ class DAQ(VISAInstrument):
     """Agilent 34970A"""
     logger = logging.getLogger('DAQ')
 
-    def set_channels(self, channels):
+    def __init__(self, address):
+        """
+        Calls the super constructor and initializes a field
+
+        :param address: VISA address of the instrument
+        :type address: str
+        """
+        super(DAQ, self).__init__(address)
+        self.channels_set = False
+
+    def set_channels(self, channels, units='C'):
         """
         Sets the channels to read from
 
         :param channels: channels to read as a list
         :type channels: list
+        :param units: temperature units; C, K, or F
+        :type units: str
         """
-        self.channels_set = False
         str_channels = ','.join(channels)
+
         time.sleep(1)
         type_config = 'CONF:TEMP TC,T,(@{})'.format(str_channels)
         self._visa_ref.write(type_config)
         self.logger.info('Config written: {}'.format(type_config))
+
         time.sleep(1)
         read_config = 'SENS:TEMP:TRAN:TC:RJUN:TYPE FIX,(@{})'.format(str_channels)
         self._visa_ref.write(read_config)
         self.logger.info('Config written: {}'.format(read_config))
+
+        valid_units = ['C', 'K', 'F']
+        units = units.upper()
+        if units in valid_units:
+            time.sleep(1)
+            unit_config = 'UNIT:TEMP {},(@{})'.format(units, str_channels)
+            self._visa_ref.write(unit_config)
+            self.logger.info('Config written: {}'.format(unit_config))
+        else:
+            self.logger.warning('Invalid units entered. Using system default.')
+
         self.logger.info('Channels set to: {}'.format(channels))
         self.channels_set = True
 

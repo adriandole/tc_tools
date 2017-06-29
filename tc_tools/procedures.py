@@ -47,8 +47,11 @@ def setpoint_calibration(prt_address, daq_address, bath_address, set_points,
     writer = TempWriter(output_file, headers)
 
     daq.set_channels(channels)
-    daq.get_temp()
-    prt.get_temp()
+    if max(daq.get_temp()) - prt.get_temp() < 1:
+        logger.info('DAQ and PRT readings within 1°')
+    else:
+        logger.warning('DAQ and PRT differ by more than 1°. Possible setup issues')
+
     bath.start()
 
     for point in set_points:
