@@ -21,10 +21,11 @@ parser.add_argument('-hd', '--headers', nargs='+', dest='hd',
                          ' channel inputs')
 in_args = parser.parse_args()
 
+name, _ = os.path.splitext(in_args.o)
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
                     datefmt='%m-%d %H:%M',
-                    filename='tc_tools.log',
+                    filename=name + '.log',
                     filemode='w')
 console = logging.StreamHandler()
 console.setLevel(logging.INFO)
