@@ -2,6 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+      <module fileurl="file://$PROJECT_DIR$/../cloudcover/.idea/cloudcover.iml" filepath="$PROJECT_DIR$/../cloudcover/.idea/cloudcover.iml" />
       <module fileurl="file://$PROJECT_DIR$/../pv_timelapse/.idea/pv_timelapse.iml" filepath="$PROJECT_DIR$/../pv_timelapse/.idea/pv_timelapse.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/tc_tools.iml" filepath="$PROJECT_DIR$/.idea/tc_tools.iml" />
     </modules>

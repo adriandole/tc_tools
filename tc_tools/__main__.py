@@ -1,7 +1,8 @@
 import argparse
+import logging
 import os
 import sys
-import logging
+
 from tc_tools.procedures import setpoint_calibration
 
 parser = argparse.ArgumentParser()
