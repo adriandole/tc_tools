@@ -7,12 +7,11 @@ from tc_tools.utils import is_number
 class VISAInstrument:
     """Wrapper for PyVisa instruments"""
 
-    def __init__(self, address):
+    def __init__(self, address: str):
         """
         Gets a VISA instrument from a resource manager
 
         :param address: VISA address of the instrument
-        :type address: str
         """
         resource_manager = visa.ResourceManager()
         self._visa_ref = resource_manager.open_resource(address)
@@ -20,25 +19,20 @@ class VISAInstrument:
 
 class PRT(VISAInstrument):
     """Hart Scientific PRT"""
+
     logger = logging.getLogger('PRT')
 
-    def __init__(self, address):
+    def __init__(self, address: str):
         """
         Calls the super constructor and sets the units to C
 
         :param address: VISA address of the instrument
-        :type address: str
         """
         super(PRT, self).__init__(address)
         self.set_units('C')
 
-    def get_temp(self):
-        """
-        Reads the temperature
-
-        :return: the temperature reading
-        :rtype: float
-        """
+    def get_temp(self) -> float:
+        """Reads the temperature"""
         time.sleep(1)
         self._visa_ref.clear()
         time.sleep(1)
@@ -50,17 +44,17 @@ class PRT(VISAInstrument):
             raise IOError
         return float(temp_portion)
 
-    def set_units(self, units):
+    def set_units(self, units: str):
         """
         Changes the output units
 
         :param units: temperature units; C, K, or F
-        :type units: str
         """
         valid_units = ['C', 'K', 'F']
         units = units.upper()
         if units in valid_units:
-            # Sleep before writing prevents quick sequential writes, which may cause errors
+            # Sleep before writing prevents quick sequential writes,
+            # which may cause errors
             time.sleep(1)
             self._visa_ref.write('UNIT:TEMP {}'.format(units))
             self.logger.info('Units set to {}'.format(units))
@@ -68,26 +62,24 @@ class PRT(VISAInstrument):
 
 class DAQ(VISAInstrument):
     """Agilent 34970A"""
+
     logger = logging.getLogger('DAQ')
 
-    def __init__(self, address):
+    def __init__(self, address: str):
         """
         Calls the super constructor and initializes a field
 
         :param address: VISA address of the instrument
-        :type address: str
         """
         super(DAQ, self).__init__(address)
         self.channels_set = False
 
-    def set_channels(self, channels, units='C'):
+    def set_channels(self, channels: list, units: str = 'C'):
         """
         Sets the channels to read from
 
         :param channels: channels to read as a list
-        :type channels: list
         :param units: temperature units; C, K, or F
-        :type units: str
         """
         str_channels = ','.join(channels)
 
@@ -97,7 +89,8 @@ class DAQ(VISAInstrument):
         self.logger.info('Config written: {}'.format(type_config))
 
         time.sleep(1)
-        read_config = 'SENS:TEMP:TRAN:TC:RJUN:TYPE FIX,(@{})'.format(str_channels)
+        read_config = 'SENS:TEMP:TRAN:TC:RJUN:TYPE FIX,(@{})'.format(
+            str_channels)
         self._visa_ref.write(read_config)
         self.logger.info('Config written: {}'.format(read_config))
 
@@ -114,12 +107,11 @@ class DAQ(VISAInstrument):
         self.logger.info('Channels set to: {}'.format(channels))
         self.channels_set = True
 
-    def get_temp(self):
+    def get_temp(self) -> list:
         """
         Reads the set channels
 
         :return: temperature readings, ordered by channel
-        :rtype: list
         """
         if self.channels_set:
             self._visa_ref.clear()
@@ -135,6 +127,7 @@ class DAQ(VISAInstrument):
 
 class TCBath(VISAInstrument):
     """Thermo AC25 bath"""
+
     logger = logging.getLogger('Bath')
 
     def start(self):
@@ -149,24 +142,14 @@ class TCBath(VISAInstrument):
         self._visa_ref.write('W RR -1')
         self.logger.info('Bath stopped')
 
-    def set_temp(self, temp):
-        """
-        Sets the temperature setpoint
-
-        :param temp: temperature to set to
-        :type temp: float
-        """
+    def set_temp(self, temp: float):
+        """Sets the temperature setpoint"""
         time.sleep(1)
         self._visa_ref.write('W SP {:.2f}'.format(temp))
         self.logger.info('Bath set to {}C'.format(temp))
 
-    def get_temp(self):
-        """
-        Reads the current temperature
-
-        :return: temperature reading
-        :rtype: float
-        """
+    def get_temp(self) -> float:
+        """Reads the current temperature"""
         time.sleep(1)
         read = self._visa_ref.query('R T1')
         try:
@@ -176,3 +159,74 @@ class TCBath(VISAInstrument):
                 return float(temp_portion)
         except:
             self.logger.warning('Bad readings')
+
+
+class PowerMeter(VISAInstrument):
+    """Yokogawa power meter"""
+
+    logger = logging.getLogger('Power Meter')
+    measure_commands = ['MEAS:NORM:ITEM:PRES CLE', 'MEAS:NORM:ITEM:{}:ELEMENT1',
+                        'ON']
+
+    def reset_integration(self):
+        """Resets the power integration"""
+        time.sleep(0.1)
+        self._visa_ref.write('INTEG:RESET')
+        self.logger.info('Integration reset')
+
+    def start_integration(self):
+        """Starts the power integration"""
+        time.sleep(0.1)
+        self._visa_ref.write('INTEG:START')
+        self.logger.info('Integration started')
+
+    def stop_integration(self):
+        """Stops the power integration"""
+        time.sleep(0.1)
+        self._visa_ref.write('INTEG:STOP')
+        self.logger.info('Integration stopped')
+
+    def _read_sequence(self, value: str) -> float:
+        self.measure_commands[1] = self.measure_commands[1].format(value)
+        for command in self.measure_commands:
+            time.sleep(0.1)
+            self._visa_ref.write(command)
+        return self._visa_ref.query_ascii_values('MEAS:NORM:VAL?')
+
+    def read_volts(self) -> float:
+        """Reads instantaneous voltage"""
+        return self._read_sequence('V')
+
+    def read_watts(self) -> float:
+        """Reads power"""
+        return self._read_sequence('W')
+
+    def read_amps(self) -> float:
+        """Reads current"""
+        return self._read_sequence('A')
+
+    def read_energy(self) -> float:
+        """Reads energy from power integration"""
+        return self._read_sequence('WH')
+
+
+class Solenoid:
+    """Controllable solenoid connected to the DAQ"""
+
+    def __init__(self, parent: DAQ, channel: int):
+        """
+        Creates a solenoid object connected to a specific DAQ
+
+        :param parent: DAQ object that this solenoid is connected to
+        :param channel: DAQ channel the solenoid is connected to
+        """
+        self.parent = parent
+        self.channel = channel
+
+    def open(self):
+        """Opens the solenoid"""
+        self.parent._visa_ref.write('ROUT:OPEN (@{})'.format(self.channel))
+
+    def close(self):
+        """Closes the solenoid"""
+        self.parent._visa_ref.write('ROUT:CLOS (@{})'.format(self.channel))

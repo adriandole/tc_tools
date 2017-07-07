@@ -1,48 +1,25 @@
 import logging
+import os
 from tc_tools.instruments import PRT, DAQ, TCBath
 from tc_tools.utils import TempWriter, steady_state_monitor
 
 
-def setpoint_calibration(prt_address, daq_address, bath_address, set_points,
-                         output_file, headers, channels):
+def setpoint_calibration(prt: PRT, daq: DAQ, bath: TCBath, set_points: list,
+                         output_file: os.path.abspath, headers: list,
+                         channels: list):
     """
     Runs the calibration procedure
 
-    :param prt_address: VISA address of the PRT
-    :type prt_address: str
-    :param daq_address: VISA address of the DAQ
-    :type daq_address: str
-    :param bath_address: VISA address of the bath
-    :type bath_address: str
+    :param prt: PRT object to use
+    :param daq: DAQ object to use
+    :param bath: TCBath object to use
     :param set_points: list of temperature set points
-    :type set_points: list
     :param output_file: path to output file
-    :type output_file: os.path.abspath
     :param headers: headers for the output file
-    :type headers: list
     :param channels: channels to collect data from
-    :type channels: list
     """
     logging.info('Calibration procedure started')
     logger = logging.getLogger('Calibration')
-
-    try:
-        prt = PRT(prt_address)
-        logger.info('PRT initialized')
-    except Exception as e:
-        logger.critical('PRT initialization error: ' + str(e))
-
-    try:
-        daq = DAQ(daq_address)
-        logger.info('DAQ initialized')
-    except Exception as e:
-        logger.critical('DAQ initialization error: ' + str(e))
-
-    try:
-        bath = TCBath(bath_address)
-        logger.info('Bath initialized')
-    except Exception as e:
-        logger.critical('Bath initialization error: ' + str(e))
 
     writer = TempWriter(output_file, headers)
 
@@ -50,7 +27,8 @@ def setpoint_calibration(prt_address, daq_address, bath_address, set_points,
     if max(daq.get_temp()) - prt.get_temp() < 1:
         logger.info('DAQ and PRT readings within 1°')
     else:
-        logger.warning('DAQ and PRT differ by more than 1°. Possible setup issues')
+        logger.warning(
+            'DAQ and PRT differ by more than 1°. Possible setup issues')
 
     bath.start()
 
