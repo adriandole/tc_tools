@@ -16,7 +16,9 @@ class VISAInstrument:
         :param address: VISA address of the instrument
         """
         resource_manager = visa.ResourceManager()
-        self._visa_ref = resource_manager.open_resource(address)
+        self._visa_ref =\
+            (resource_manager.
+             open_resource(address)) # type: visa.resources.Resource
 
 
 class PRT(VISAInstrument):
@@ -169,7 +171,6 @@ class DAQ(VISAInstrument):
             for x in output.items():
                 output_list.append(x[1])
             return output_list
-
 
 
 class TCBath(VISAInstrument):
