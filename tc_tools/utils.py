@@ -5,6 +5,7 @@ import time
 import logging
 import numpy as np
 from datetime import datetime
+from tc_tools.instruments import PRT, DAQ
 
 
 def address_query():
@@ -25,16 +26,15 @@ def address_query():
 
 class TempWriter:
     """Writes data to a file"""
+
     logger = logging.getLogger('Data')
 
-    def __init__(self, output_file_name, headers):
+    def __init__(self, output_file_name: os.path.abspath, headers: list):
         """
         Sets the file name and headers
 
         :param output_file_name: path to output to
-        :type output_file_name: os.path.abspath
         :param headers: headers for the CSV file
-        :type headers: list
         """
         self.headers = ['Time', 'PRT'] + headers
         self.output_file_path = os.path.abspath(output_file_name)
@@ -46,25 +46,21 @@ class TempWriter:
             self.csv_writer.writerow(self.headers)
             self.logger.info('Writing CSV headers')
 
-    def collect_data(self, prt, daq, reads=10, interval=30):
+    def collect_data(self, prt: PRT, daq: DAQ, reads:int=10, interval:int=30):
         """
         Collects data from the given instrument objects
 
         :param prt: the PRT thermometer to read from
-        :type prt: tc_tools.instruments.PRT
         :param daq: the DAQ to read from
-        :type daq: tc_tools.instruments.DAQ
         :param reads: how many readings to take
-        :type reads: 10
         :param interval: time interval between readings in seconds
-        :type interval: int
         """
         successful_reads = 0
         self.logger.info('Collecting data: {} readings at {}s intervals'
                          .format(reads, interval))
         while successful_reads < reads:
             try:
-                data = [prt.get_temp()] + daq.get_temp()
+                data = [prt.get_temp()] + daq.get_temp_uncalibrated()
                 self._write(data)
                 successful_reads += 1
                 self.logger.info('Read #{} successful'.format(successful_reads))
@@ -87,13 +83,12 @@ class TempWriter:
         self.csv_writer.writerow([datetime.now().strftime('%Y-%m-%d %H:%M:%S')] + input_data)
 
 
-def steady_state_monitor(prt, steady_delta=0.1):
+def steady_state_monitor(prt: PRT, steady_delta:float=0.1):
     """
     Uses the given PRT to monitor if the bath is steady-state
+
     :param prt: the PRT to monitor with
-    :type prt: tc_tools.instruments.PRT
     :param steady_delta: maximum temperature difference over ten minutes
-    :type steady_delta: float
     """
     temperature_array = np.empty((0, 0))
     steady_state = False
@@ -113,14 +108,12 @@ def steady_state_monitor(prt, steady_delta=0.1):
             return True
 
 
-def is_number(s):
+def is_number(s: str) -> bool:
     """
     Returns if a given string input is a number
 
     :param s: the input to test
-    :type s: str
     :return: if the input is a number
-    :rtype: bool
     """
     try:
         float(s)

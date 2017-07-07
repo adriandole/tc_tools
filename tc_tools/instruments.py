@@ -1,3 +1,5 @@
+from typing import Union
+
 import visa
 import time
 import logging
@@ -22,7 +24,7 @@ class PRT(VISAInstrument):
 
     logger = logging.getLogger('PRT')
 
-    def __init__(self, address: str):
+    def __init__(self, address: str) -> None:
         """
         Calls the super constructor and sets the units to C
 
@@ -73,6 +75,10 @@ class DAQ(VISAInstrument):
         """
         super(DAQ, self).__init__(address)
         self.channels_set = False
+        self.channels = []
+        self.calibrated = False
+        self.cal_functions = {}
+        self._configured_channels = {}
 
     def set_channels(self, channels: list, units: str = 'C'):
         """
@@ -81,8 +87,11 @@ class DAQ(VISAInstrument):
         :param channels: channels to read as a list
         :param units: temperature units; C, K, or F
         """
+        self.channels = channels
         str_channels = ','.join(channels)
-
+        for channel in channels:
+            self.cal_functions.update({channel: lambda x: x})
+            self._configured_channels.update({channel: False})
         time.sleep(1)
         type_config = 'CONF:TEMP TC,T,(@{})'.format(str_channels)
         self._visa_ref.write(type_config)
@@ -107,9 +116,9 @@ class DAQ(VISAInstrument):
         self.logger.info('Channels set to: {}'.format(channels))
         self.channels_set = True
 
-    def get_temp(self) -> list:
+    def get_temp_uncalibrated(self, as_dict = False) -> Union[list, dict]:
         """
-        Reads the set channels
+        Reads the set channels without calibration
 
         :return: temperature readings, ordered by channel
         """
@@ -119,10 +128,48 @@ class DAQ(VISAInstrument):
             data = self._visa_ref.query_ascii_values('READ?')
             if not all(0 < n < 100 for n in data):
                 self.logger.warning('Bad readings')
-                raise IOError('PRT read error')
-            return data
+                raise IOError('DAQ read error')
+            self.logger.warning('Reading uncalibrated temperatures')
+            if not as_dict:
+                return data
+            else:
+                return_dict = {}
+                for n in range(len(self.channels)):
+                    return_dict.update({self.channels[n]: data[n]})
+                return return_dict
         else:
             raise UserWarning('Set DAQ channels before reading data')
+
+    def set_calibration(self, channel: int, gain: float = 1.0,
+                        offset: float = 0.0):
+        """
+        Sets calibration constants for a given channel
+
+        :param channel:
+        :param gain:
+        :param offset:
+        """
+        self.cal_functions.update({channel: lambda x: gain*x + offset})
+
+    def get_calibrated_temp(self, as_dict=True) -> Union[dict, list]:
+        """
+        Reads temperatures and applies calibration
+
+        :param as_dict: whether to return as a dict
+        :return: dict or list of return values
+        """
+        data = self.get_temp_uncalibrated(as_dict=True)
+        output = {}
+        for channel in self.channels:
+            output.update({channel: self.cal_functions[channel](data[channel])})
+        if as_dict:
+            return output
+        else:
+            output_list = []
+            for x in output.items():
+                output_list.append(x[1])
+            return output_list
+
 
 
 class TCBath(VISAInstrument):
@@ -222,11 +269,14 @@ class Solenoid:
         """
         self.parent = parent
         self.channel = channel
+        self.logger = logging.getLogger('Solenoid @{}'.format(channel))
 
     def open(self):
         """Opens the solenoid"""
         self.parent._visa_ref.write('ROUT:OPEN (@{})'.format(self.channel))
+        self.logger.info('Opened')
 
     def close(self):
         """Closes the solenoid"""
         self.parent._visa_ref.write('ROUT:CLOS (@{})'.format(self.channel))
+        self.logger.info('Closed')

@@ -24,7 +24,7 @@ def setpoint_calibration(prt: PRT, daq: DAQ, bath: TCBath, set_points: list,
     writer = TempWriter(output_file, headers)
 
     daq.set_channels(channels)
-    if max(daq.get_temp()) - prt.get_temp() < 1:
+    if max(daq.get_temp_uncalibrated()) - prt.get_temp() < 1:
         logger.info('DAQ and PRT readings within 1°')
     else:
         logger.warning(
