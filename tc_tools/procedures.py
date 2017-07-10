@@ -1,7 +1,7 @@
 import logging
 import os
 from tc_tools.instruments import PRT, DAQ, TCBath
-from tc_tools.utils import TempWriter, steady_state_monitor
+from tc_tools.utils import CalibrationWriter, steady_state_monitor
 
 
 def setpoint_calibration(prt: PRT, daq: DAQ, bath: TCBath, set_points: list,
@@ -21,7 +21,7 @@ def setpoint_calibration(prt: PRT, daq: DAQ, bath: TCBath, set_points: list,
     logging.info('Calibration procedure started')
     logger = logging.getLogger('Calibration')
 
-    writer = TempWriter(output_file, headers)
+    writer = CalibrationWriter(output_file, headers)
 
     daq.set_channels(channels)
     if max(daq.get_temp_uncalibrated()) - prt.get_temp() < 1:
@@ -40,3 +40,4 @@ def setpoint_calibration(prt: PRT, daq: DAQ, bath: TCBath, set_points: list,
             writer.collect_data(prt, daq)
 
     bath.stop()
+

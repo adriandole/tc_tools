@@ -63,7 +63,7 @@ except Exception as e:
 try:
     setpoint_calibration(prt, daq, bath, in_args.s,
                          in_args.o, in_args.hd, in_args.c)
+    logging.info('Calibration successful')
 except Exception as e:
     logging.critical('Exception during execution: {}'.format(type(e).__name__))
 
-logging.info('Calibration successful')

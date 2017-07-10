@@ -24,10 +24,10 @@ def address_query():
     resource_manager.close()
 
 
-class TempWriter:
-    """Writes data to a file"""
+class DataWriter:
+    """Writes input data to a file"""
 
-    logger = logging.getLogger('Data')
+    logger = logging.getLogger('Calibration Data')
 
     def __init__(self, output_file_name: os.path.abspath, headers: list):
         """
@@ -41,10 +41,26 @@ class TempWriter:
         self.logger.info('Writing to: {}'.format(str(self.output_file_path)))
         self.file_already_exists = os.path.isfile(self.output_file_path)
         self._open_file()
-        self.csv_writer = csv.writer(self.output_file, dialect='excel', quoting=csv.QUOTE_ALL)
+        self.csv_writer = csv.writer(self.output_file, dialect='excel',
+                                     quoting=csv.QUOTE_ALL)
         if not self.file_already_exists:
             self.csv_writer.writerow(self.headers)
             self.logger.info('Writing CSV headers')
+
+    def _open_file(self):
+        if self.file_already_exists:
+            self.output_file = open(self.output_file_path, 'a', newline='')
+            self.logger.info('Appending to existing file')
+        else:
+            self.output_file = open(self.output_file_path, 'w', newline='')
+            self.logger.info('Creating new file')
+
+    def _write(self, input_data):
+        self.csv_writer.writerow([datetime.now().strftime('%Y-%m-%d %H:%M:%S')] + input_data)
+
+
+class CalibrationWriter(DataWriter):
+    """Writer for the calibration procedure"""
 
     def collect_data(self, prt: PRT, daq: DAQ, reads:int=10, interval:int=30):
         """
@@ -71,17 +87,6 @@ class TempWriter:
         self.logger.info('Data collection complete.')
         self.output_file.flush()
 
-    def _open_file(self):
-        if self.file_already_exists:
-            self.output_file = open(self.output_file_path, 'a', newline='')
-            self.logger.info('Appending to existing file')
-        else: 
-            self.output_file = open(self.output_file_path, 'w', newline='')
-            self.logger.info('Creating new file')
-
-    def _write(self, input_data):
-        self.csv_writer.writerow([datetime.now().strftime('%Y-%m-%d %H:%M:%S')] + input_data)
-
 
 def steady_state_monitor(prt: PRT, steady_delta:float=0.1):
     """
@@ -106,17 +111,3 @@ def steady_state_monitor(prt: PRT, steady_delta:float=0.1):
         time.sleep(10)
         if steady_state:
             return True
-
-
-def is_number(s: str) -> bool:
-    """
-    Returns if a given string input is a number
-
-    :param s: the input to test
-    :return: if the input is a number
-    """
-    try:
-        float(s)
-        return True
-    except ValueError:
-        return False

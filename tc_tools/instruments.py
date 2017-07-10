@@ -3,7 +3,6 @@ from typing import Union
 import visa
 import time
 import logging
-from tc_tools.utils import is_number
 
 
 class VISAInstrument:
@@ -16,9 +15,20 @@ class VISAInstrument:
         :param address: VISA address of the instrument
         """
         resource_manager = visa.ResourceManager()
-        self._visa_ref =\
-            (resource_manager.
-             open_resource(address)) # type: visa.resources.Resource
+        self.visa_ref = resource_manager.open_resource(address)
+
+    def command(self, command: str):
+        self.visa_ref.clear()
+        time.sleep(0.1)
+        self.visa_ref.write(command)
+
+    def read(self, query: str = 'READ?', parse: bool = True):
+        self.visa_ref.clear()
+        time.sleep(0.1)
+        if parse:
+            return self.visa_ref.query_ascii_values(query)
+        else:
+            return self.visa_ref.query(query)
 
 
 class PRT(VISAInstrument):
@@ -37,10 +47,7 @@ class PRT(VISAInstrument):
 
     def get_temp(self) -> float:
         """Reads the temperature"""
-        time.sleep(1)
-        self._visa_ref.clear()
-        time.sleep(1)
-        read = self._visa_ref.query('READ?')
+        read = self.read(parse=False)
         # Portion of the output with temperature digits
         temp_portion = read[5:11]
         if not (is_number(temp_portion) and (float(temp_portion) > 0)):
@@ -59,8 +66,7 @@ class PRT(VISAInstrument):
         if units in valid_units:
             # Sleep before writing prevents quick sequential writes,
             # which may cause errors
-            time.sleep(1)
-            self._visa_ref.write('UNIT:TEMP {}'.format(units))
+            self.command('UNIT:TEMP {}'.format(units))
             self.logger.info('Units set to {}'.format(units))
 
 
@@ -94,23 +100,20 @@ class DAQ(VISAInstrument):
         for channel in channels:
             self.cal_functions.update({channel: lambda x: x})
             self._configured_channels.update({channel: False})
-        time.sleep(1)
         type_config = 'CONF:TEMP TC,T,(@{})'.format(str_channels)
-        self._visa_ref.write(type_config)
+        self.command(type_config)
         self.logger.info('Config written: {}'.format(type_config))
 
-        time.sleep(1)
         read_config = 'SENS:TEMP:TRAN:TC:RJUN:TYPE FIX,(@{})'.format(
             str_channels)
-        self._visa_ref.write(read_config)
+        self.command(read_config)
         self.logger.info('Config written: {}'.format(read_config))
 
         valid_units = ['C', 'K', 'F']
         units = units.upper()
         if units in valid_units:
-            time.sleep(1)
             unit_config = 'UNIT:TEMP {},(@{})'.format(units, str_channels)
-            self._visa_ref.write(unit_config)
+            self.command(unit_config)
             self.logger.info('Config written: {}'.format(unit_config))
         else:
             self.logger.warning('Invalid units entered. Using system default.')
@@ -125,9 +128,7 @@ class DAQ(VISAInstrument):
         :return: temperature readings, ordered by channel
         """
         if self.channels_set:
-            self._visa_ref.clear()
-            time.sleep(1)
-            data = self._visa_ref.query_ascii_values('READ?')
+            data = self.read()
             if not all(0 < n < 100 for n in data):
                 self.logger.warning('Bad readings')
                 raise IOError('DAQ read error')
@@ -180,26 +181,22 @@ class TCBath(VISAInstrument):
 
     def start(self):
         """Starts the bath"""
-        time.sleep(1)
-        self._visa_ref.write('W GO 1')
+        self.command('W GO 1')
         self.logger.info('Bath started')
 
     def stop(self):
         """Stops the bath"""
-        time.sleep(1)
-        self._visa_ref.write('W RR -1')
+        self.command('W RR -1')
         self.logger.info('Bath stopped')
 
     def set_temp(self, temp: float):
         """Sets the temperature setpoint"""
-        time.sleep(1)
-        self._visa_ref.write('W SP {:.2f}'.format(temp))
+        self.command('W SP {:.2f}'.format(temp))
         self.logger.info('Bath set to {}C'.format(temp))
 
     def get_temp(self) -> float:
         """Reads the current temperature"""
-        time.sleep(1)
-        read = self._visa_ref.query('R T1')
+        read = self.read(query='R T1', parse=False)
         try:
             if len(read) > 5:
                 temp_portion = read[3:-4]
@@ -218,28 +215,24 @@ class PowerMeter(VISAInstrument):
 
     def reset_integration(self):
         """Resets the power integration"""
-        time.sleep(0.1)
-        self._visa_ref.write('INTEG:RESET')
+        self.command('INTEG:RESET')
         self.logger.info('Integration reset')
 
     def start_integration(self):
         """Starts the power integration"""
-        time.sleep(0.1)
-        self._visa_ref.write('INTEG:START')
+        self.command('INTEG:START')
         self.logger.info('Integration started')
 
     def stop_integration(self):
         """Stops the power integration"""
-        time.sleep(0.1)
-        self._visa_ref.write('INTEG:STOP')
+        self.command('INTEG:STOP')
         self.logger.info('Integration stopped')
 
     def _read_sequence(self, value: str) -> float:
         self.measure_commands[1] = self.measure_commands[1].format(value)
         for command in self.measure_commands:
-            time.sleep(0.1)
-            self._visa_ref.write(command)
-        return self._visa_ref.query_ascii_values('MEAS:NORM:VAL?')
+            self.command(command)
+        return self.read(query='MEAS:NORM:VAL?')
 
     def read_volts(self) -> float:
         """Reads instantaneous voltage"""
@@ -270,14 +263,111 @@ class Solenoid:
         """
         self.parent = parent
         self.channel = channel
+        self.is_open = False
         self.logger = logging.getLogger('Solenoid @{}'.format(channel))
 
     def open(self):
         """Opens the solenoid"""
-        self.parent._visa_ref.write('ROUT:OPEN (@{})'.format(self.channel))
+        self.parent.command('ROUT:OPEN (@{})'.format(self.channel))
+        self.is_open = True
         self.logger.info('Opened')
 
     def close(self):
         """Closes the solenoid"""
-        self.parent._visa_ref.write('ROUT:CLOS (@{})'.format(self.channel))
+        self.parent.command('ROUT:CLOS (@{})'.format(self.channel))
+        self.is_open = False
         self.logger.info('Closed')
+
+
+class BelimoValve:
+    """Flow control valve connected to the DAQ"""
+
+    def __init__(self, parent: DAQ, channel: int, volt_const: float = 0):
+        """
+        Creates a solenoid object connected to a specific DAQ
+
+        :param parent: DAQ object that this valve is connected to
+        :param channel: DAQ channel the valve is connected to
+        :param volt_const: flow rate * volt_const = voltage to send
+        """
+        self.parent = parent
+        self.channel = channel
+        self.logger = logging.getLogger('Belimo valve @{}'.format(channel))
+        self.volt_const = volt_const
+
+    def _write_volts(self, volts: float):
+        if not (0 <= volts <= 10):
+            self.logger.critical('Invalid voltage ({:.2f} V)'.format(volts))
+            raise IOError('Invalid voltage sent to Belimo valve')
+        self.parent.command(
+            'SOURCE:VOLT {:2.3}, (@{})'.format(volts, self.channel))
+
+    def set_flow(self, flow_rate: float):
+        self._write_volts(0)
+        self.logger.info('Resetting to zero and waiting 60 s')
+        time.sleep(60)
+
+        v_send = flow_rate * self.volt_const
+        self._write_volts(v_send)
+        self.logger.info("Sending {:.2f} V ({} x {})".format(v_send, flow_rate,
+                                                             self.volt_const))
+
+
+class MTScale:
+    """Mettler Toledo 1000 lb scale"""
+
+    def __init__(self, parent: DAQ, channel: int, gain: float = 100.5320481071,
+                 offset: float = -3.284305861022):
+        """
+        Creates a scale object connected to a specific DAQ
+
+        :param parent: DAQ object that this valve is connected to
+        :param channel: DAQ channel the valve is connected to
+        """
+        self.parent = parent
+        self.channel = channel
+        self.gain = gain
+        self.offset = offset
+
+    def weigh(self) -> float:
+        """Reads the current weight in pounds"""
+        self.parent.command('CONF:VOLT:DC AUTO,MAX, (@{})'.format(self.channel))
+        raw_out = self.parent.read()
+        return raw_out * self.gain + self.offset
+
+
+class HumiditySensor:
+    """Relative humidity sensor"""
+
+    def __init__(self, parent: DAQ, channel: int, gain: float = 6250,
+                 offset: float = -25):
+        """
+        Creates an RH sensor object connected to a specific DAQ
+
+        :param parent: DAQ object that this sensor is connected to
+        :param channel: DAQ channel the sensor is connected to
+        """
+        self.parent = parent
+        self.channel = channel
+        self.gain = gain
+        self.offset = offset
+
+    def rh(self) -> float:
+        """Reads the current RH"""
+        self.parent.command('CONF:CURR:DC (@{})'.format(self.channel))
+        raw_out = self.parent.read()
+        return raw_out * self.gain + self.offset
+
+
+def is_number(s: str) -> bool:
+    """
+    Returns if a given string input is a number
+
+    :param s: the input to test
+    :return: if the input is a number
+    """
+    try:
+        float(s)
+        return True
+    except ValueError:
+        return False
