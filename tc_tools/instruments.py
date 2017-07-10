@@ -18,11 +18,22 @@ class VISAInstrument:
         self.visa_ref = resource_manager.open_resource(address)
 
     def command(self, command: str):
+        """
+        Sends a VISA command
+        :param command: the SCPI command to send
+        """
         self.visa_ref.clear()
         time.sleep(0.1)
         self.visa_ref.write(command)
 
     def read(self, query: str = 'READ?', parse: bool = True):
+        """
+        Sends a query request to the instrument
+
+        :param query: the query command
+        :param parse: whether to attempt to read the output as numbers
+        :return: the readout from the instrument
+        """
         self.visa_ref.clear()
         time.sleep(0.1)
         if parse:
@@ -148,9 +159,9 @@ class DAQ(VISAInstrument):
         """
         Sets calibration constants for a given channel
 
-        :param channel:
-        :param gain:
-        :param offset:
+        :param channel: channel to set calibration for
+        :param gain: multiplies the output
+        :param offset: added to the output
         """
         self.cal_functions.update({channel: lambda x: gain*x + offset})
 

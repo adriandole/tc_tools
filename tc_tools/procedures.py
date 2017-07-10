@@ -1,6 +1,6 @@
 import logging
 import os
-from tc_tools.instruments import PRT, DAQ, TCBath
+from tc_tools.instruments import *
 from tc_tools.utils import CalibrationWriter, steady_state_monitor
 
 
@@ -41,3 +41,8 @@ def setpoint_calibration(prt: PRT, daq: DAQ, bath: TCBath, set_points: list,
 
     bath.stop()
 
+def predraw(draws: int, draw_solenoid: Solenoid, power_meter: PowerMeter):
+    if draws == 0:
+        return
+    for n in range(draws):
+        draw_solenoid.open()
