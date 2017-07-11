@@ -1,11 +1,13 @@
-import visa
-import os
 import csv
-import time
-import logging
+import os
+import re
+from collections import namedtuple
+from datetime import datetime, timedelta
+from typing import List
+
 import numpy as np
-from datetime import datetime
-from tc_tools.instruments import PRT, DAQ
+
+from tc_tools.instruments import *
 
 
 def address_query():
@@ -29,15 +31,16 @@ class DataWriter:
 
     logger = logging.getLogger('Calibration Data')
 
-    def __init__(self, output_file_name: os.path.abspath, headers: list):
+    def __init__(self, output_file_path: os.path.abspath, headers: list):
         """
         Sets the file name and headers
 
         :param output_file_name: path to output to
         :param headers: headers for the CSV file
         """
-        self.headers = ['Time', 'PRT'] + headers
-        self.output_file_path = os.path.abspath(output_file_name)
+        self.headers = ['Time'] + headers
+        self.output_file_path = output_file_path
+        self.start = time.time()
         self.logger.info('Writing to: {}'.format(str(self.output_file_path)))
         self.file_already_exists = os.path.isfile(self.output_file_path)
         self._open_file()
@@ -46,6 +49,9 @@ class DataWriter:
         if not self.file_already_exists:
             self.csv_writer.writerow(self.headers)
             self.logger.info('Writing CSV headers')
+
+    def clock_reset(self):
+        self.start = time.time()
 
     def _open_file(self):
         if self.file_already_exists:
@@ -56,7 +62,8 @@ class DataWriter:
             self.logger.info('Creating new file')
 
     def _write(self, input_data):
-        self.csv_writer.writerow([datetime.now().strftime('%Y-%m-%d %H:%M:%S')] + input_data)
+        self.csv_writer.writerow([datetime.now().strftime('%Y-%m-%d %H:%M:%S')]
+                                 + input_data)
 
 
 class CalibrationWriter(DataWriter):
@@ -88,6 +95,84 @@ class CalibrationWriter(DataWriter):
         self.output_file.flush()
 
 
+class SimulatedUseWriter(DataWriter):
+    """Writer for the simulated use test"""
+
+    def __init__(self, output_file: os.path.abspath, daq: DAQ,
+                 rh: HumiditySensor, power_meter: PowerMeter,
+                 headers: List[str]):
+        super(SimulatedUseWriter, self).__init__(output_file, headers)
+        self.daq = daq
+        self.rh = rh
+        self.pm = power_meter
+        self.recording = True
+        self.drawing = False
+
+    def gather_data(self, interval: int = 60):
+        """
+        Gathers data until stopped
+
+        :param interval: seconds to wait between reads
+        """
+        while self.recording:
+            self.read_data()
+            time.sleep(interval)
+
+    def read_data(self):
+        """Reads all relevant data"""
+        tc_data = self.daq.get_calibrated_temp()
+        power_data = [self.pm.read_watts(),
+                      self.pm.read_energy(), self.pm.read_volts(),
+                      self.pm.read_amps()]
+        rh_data = [self.rh.rh()]
+        all_data = [time.time() - self.start] + [self.drawing] + tc_data +\
+                   rh_data + power_data
+        self._write([str(n) for n in all_data])
+
+    def stop_data(self):
+        """Terminates any running recording"""
+        self.recording = False
+
+
+class DrawWriter(DataWriter):
+    """Writer for draws"""
+
+    def __init__(self, headers: List[str], output_file: os.path.abspath,
+                 inlet_channel: int, outlet_channel: int, daq: DAQ,
+                 scale: MTScale, draw_num: int = 1):
+        """
+        Creates a writer for use while drawing water
+
+        :param headers: column titles for the output file
+        :param output_file: path to the output file
+        :param inlet_channel: channel of the tank inlet thermocouple
+        :param outlet_channel :channel of the tank outlet thermocouple
+        :param daq: DAQ to read from
+        :param draw_num: what number draw is being written
+        """
+        super(DrawWriter, self).__init__(output_file, headers)
+        self.daq = DAQ
+        self.scale = MTScale
+        self.inlet = inlet_channel
+        self.outlet = outlet_channel
+        self.start = time.time()
+        self.draw_num = 1
+
+    def read_data(self, initial: bool = False):
+        """Reads relevant data"""
+        temps = self.daq.get_calibrated_temp(as_dict=True)
+        elapsed = 0 if initial else [self.start - time.time()]
+        temp_data = [temps[self.inlet] + temps[self.outlet]]
+        weight = [self.scale.weigh()]
+        self._write(elapsed + temp_data + weight)
+
+    def set_draw_num(self, draw_num: int):
+        self.draw_num = draw_num
+
+    def reset(self):
+        """Resets the start time"""
+        self.start = time.time()
+
 def steady_state_monitor(prt: PRT, steady_delta:float=0.1):
     """
     Uses the given PRT to monitor if the bath is steady-state
@@ -111,3 +196,26 @@ def steady_state_monitor(prt: PRT, steady_delta:float=0.1):
         time.sleep(10)
         if steady_state:
             return True
+
+
+def parse_schedule(schedule_file: os.path.abspath) -> namedtuple:
+    """
+    Reads the draw schedule from a file
+
+    :param schedule_file: path to the schedule file
+    :return: tuple of draw parameters
+    """
+    schedule = namedtuple('schedule', ['time', 'volume', 'rate'])
+    with open(schedule_file) as f:
+        reader = csv.reader(f, dialect='excel')
+        time = []
+        volume = []
+        rate = []
+        for row in reader:
+            h,m = re.split(':', row[0])
+            time += [timedelta(hours=int(h), minutes=int(m)).total_seconds()]
+            volume += [float(row[1])]
+            rate += [float(row[2])]
+
+    return schedule(time, volume, rate)
+

@@ -8,6 +8,8 @@ import logging
 class VISAInstrument:
     """Wrapper for PyVisa instruments"""
 
+    logger = logging.getLogger('VISA')
+
     def __init__(self, address: str):
         """
         Gets a VISA instrument from a resource manager
@@ -16,6 +18,8 @@ class VISAInstrument:
         """
         resource_manager = visa.ResourceManager()
         self.visa_ref = resource_manager.open_resource(address)
+        self.logger.info(
+            'Instrument at {} connected successfully'.format(address))
 
     def command(self, command: str):
         """
@@ -165,7 +169,7 @@ class DAQ(VISAInstrument):
         """
         self.cal_functions.update({channel: lambda x: gain*x + offset})
 
-    def get_calibrated_temp(self, as_dict=True) -> Union[dict, list]:
+    def get_calibrated_temp(self, as_dict=False) -> Union[dict, list]:
         """
         Reads temperatures and applies calibration
 
@@ -276,6 +280,7 @@ class Solenoid:
         self.channel = channel
         self.is_open = False
         self.logger = logging.getLogger('Solenoid @{}'.format(channel))
+        self.logger.info('Initialized')
 
     def open(self):
         """Opens the solenoid"""
@@ -305,6 +310,8 @@ class BelimoValve:
         self.channel = channel
         self.logger = logging.getLogger('Belimo valve @{}'.format(channel))
         self.volt_const = volt_const
+        self.is_reset = False
+        self.logger.info('Initialized')
 
     def _write_volts(self, volts: float):
         if not (0 <= volts <= 10):
@@ -313,11 +320,15 @@ class BelimoValve:
         self.parent.command(
             'SOURCE:VOLT {:2.3}, (@{})'.format(volts, self.channel))
 
-    def set_flow(self, flow_rate: float):
+    def reset(self):
+        """Resets to valve to zero"""
         self._write_volts(0)
         self.logger.info('Resetting to zero and waiting 60 s')
         time.sleep(60)
 
+    def set_flow(self, flow_rate: float):
+        if not self.is_reset:
+            self.reset()
         v_send = flow_rate * self.volt_const
         self._write_volts(v_send)
         self.logger.info("Sending {:.2f} V ({} x {})".format(v_send, flow_rate,
@@ -339,6 +350,8 @@ class MTScale:
         self.channel = channel
         self.gain = gain
         self.offset = offset
+        self.logger = logging.getLogger('Scale @{}'.format(channel))
+        self.logger.info('Initialized')
 
     def weigh(self) -> float:
         """Reads the current weight in pounds"""
@@ -362,6 +375,7 @@ class HumiditySensor:
         self.channel = channel
         self.gain = gain
         self.offset = offset
+        self.logger = logging.getLogger('RH Sensor @{}'.format(channel))
 
     def rh(self) -> float:
         """Reads the current RH"""
