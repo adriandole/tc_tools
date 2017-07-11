@@ -98,9 +98,17 @@ class CalibrationWriter(DataWriter):
 class SimulatedUseWriter(DataWriter):
     """Writer for the simulated use test"""
 
-    def __init__(self, output_file: os.path.abspath, daq: DAQ,
-                 rh: HumiditySensor, power_meter: PowerMeter,
-                 headers: List[str]):
+    def __init__(self, headers: List[str], output_file: os.path.abspath,
+                 daq: DAQ, rh: HumiditySensor, power_meter: PowerMeter):
+        """
+        Writer for minutely data during the simulated use test
+
+        :param headers: column titles for the output file
+        :param output_file: path to the output file
+        :param daq: DAQ to read from
+        :param rh: humidity sensor object
+        :param power_meter: power meter object
+        """
         super(SimulatedUseWriter, self).__init__(output_file, headers)
         self.daq = daq
         self.rh = rh
@@ -129,6 +137,10 @@ class SimulatedUseWriter(DataWriter):
                    rh_data + power_data
         self._write([str(n) for n in all_data])
 
+    def set_drawing(self, drawing: bool):
+        """Tells the writer if there's current a draw"""
+        self.drawing = drawing
+
     def stop_data(self):
         """Terminates any running recording"""
         self.recording = False
@@ -139,20 +151,20 @@ class DrawWriter(DataWriter):
 
     def __init__(self, headers: List[str], output_file: os.path.abspath,
                  inlet_channel: int, outlet_channel: int, daq: DAQ,
-                 scale: MTScale, draw_num: int = 1):
+                 scale: MTScale):
         """
         Creates a writer for use while drawing water
 
         :param headers: column titles for the output file
         :param output_file: path to the output file
         :param inlet_channel: channel of the tank inlet thermocouple
-        :param outlet_channel :channel of the tank outlet thermocouple
+        :param outlet_channel: channel of the tank outlet thermocouple
         :param daq: DAQ to read from
-        :param draw_num: what number draw is being written
+        :param scale: scale object
         """
         super(DrawWriter, self).__init__(output_file, headers)
-        self.daq = DAQ
-        self.scale = MTScale
+        self.daq = daq
+        self.scale = scale
         self.inlet = inlet_channel
         self.outlet = outlet_channel
         self.start = time.time()
