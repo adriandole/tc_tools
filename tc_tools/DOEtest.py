@@ -100,24 +100,30 @@ except Exception as e:
     print(str(e))
     sys.exit('Error initializing writers')
 
-schedule = p.parse_schedule(schedule_file)
-start_time = time.time()
-elapsed = 0.0
-draw_num = 1
-draws_finished = False
-while elapsed < (schedule.time[-1] + 60):
-    min_writer.read_data()
-    elapsed = time.time() - start_time
-    if (elapsed >= schedule.time[draw_num]) and not draws_finished:
-        draw_process = Process(target=p.draw,
-                               args=(schedule.rate[draw_num],
-                                     schedule.volume[draw_num], draw_solenoid,
-                                     weigh_solenoid, scale, flow_valve,
-                                     draw_writer))
-        draw_process.start()
-    if draw_num == (len(schedule.time) - 1):
-        draws_finished = True
-    else:
-        draw_num += 1
-    time.sleep(60.0 - ((time.time() - start_time) % 60.0))
+if __name__ == '__main__':
+    schedule = p.parse_schedule(schedule_file)
+    start_time = time.time()
+    elapsed = 0.0
+    draw_num = 1
+    draws_finished = False
+    draw_process = Process()
 
+    while elapsed < (schedule.time[-1] + 60):
+        min_writer.set_drawing(draw_process.is_alive())
+        min_writer.read_data()
+        elapsed = time.time() - start_time
+        if (elapsed >= schedule.time[draw_num]) and not draws_finished:
+            # separate thread for the draw process to maintain timing
+            draw_process = Process(target=p.draw,
+                                   args=(schedule.rate[draw_num],
+                                         schedule.volume[draw_num],
+                                         draw_solenoid,
+                                         weigh_solenoid, scale, flow_valve,
+                                         draw_writer))
+            draw_process.start()
+        if draw_num == (len(schedule.time) - 1):
+            draws_finished = True
+        else:
+            draw_num += 1
+        # execute every 60 seconds regardless of how long the above code takes
+        time.sleep(60.0 - ((time.time() - start_time) % 60.0))
