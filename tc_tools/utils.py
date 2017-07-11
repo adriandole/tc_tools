@@ -11,7 +11,8 @@ from tc_tools.instruments import *
 
 
 def address_query():
-    """Sends an *IDN? query to each port. Each instrument should return its name."""
+    """Sends an *IDN? query to each port. Each instrument should return its
+    name."""
     resource_manager = visa.ResourceManager()
     addresses = resource_manager.list_resources()
 

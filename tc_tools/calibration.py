@@ -3,8 +3,8 @@ import logging
 import os
 import sys
 
-from tc_tools.procedures import setpoint_calibration
 from tc_tools.instruments import PRT, DAQ, TCBath
+from tc_tools.procedures import setpoint_calibration
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-daq', '--daq_address', type=str, dest='daq',

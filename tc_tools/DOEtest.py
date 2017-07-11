@@ -1,14 +1,13 @@
 import argparse
+import logging
 import os
 import sys
-import tc_tools.procedures as p
-import tc_tools.instruments as i
-import tc_tools.utils as u
 import time
-from collections import namedtuple
 from multiprocessing import Process
 
-import logging
+import tc_tools.instruments as i
+import tc_tools.procedures as p
+import tc_tools.utils as u
 
 data_headers = ['Elapsed', 'Draw Status', 'Inst. Tank Avg', 'Tank 1',
                 'Tank 2', 'Tank 3', 'Tank 4', 'Tank 5', 'Tank 6',

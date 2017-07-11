@@ -1,8 +1,8 @@
+import logging
+import time
 from typing import Union
 
 import visa
-import time
-import logging
 
 
 class VISAInstrument:
