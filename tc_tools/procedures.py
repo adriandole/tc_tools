@@ -1,3 +1,5 @@
+from typing import Dict
+
 from tc_tools.utils import *
 
 
@@ -107,3 +109,10 @@ def draw(flow_rate: float, draw_amount: float, draw_solenoid: Solenoid,
         draw_writer.read_data()
         weight = scale.weigh()
         time.sleep(2)
+
+
+def valve_calibration(valve: BelimoValve, scale: MTScale,
+                      draw_solenoid: Solenoid, weigh_solenoid: Solenoid,
+                      set_points: List[float]) -> Dict[float: float]:
+    # TODO
+    return {}
